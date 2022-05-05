@@ -1,0 +1,7 @@
+*.o
+*.mod
+closest_serial
+gen_points
+test.dat
+points.dat
+out.dat

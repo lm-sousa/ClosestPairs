@@ -23,13 +23,16 @@ IMPLICIT NONE
 
 ! variable declaration: all in closest_mod
 
+! start measuring cputime
+CALL measure_cpu_time(cput)
+
 ! read command line arguments
 CALL parseArguments(infile, outfile)
 
 ! read from file 
 np = 0
 ndim = 2
-CALL readPoints(infile, np, ndim, domain, all_pts, verb=1)
+CALL readPoints(infile, np, ndim, domain, all_pts, verb=0)
 
 ! calculate closest
 ALLOCATE (p1(ndim))
@@ -37,7 +40,11 @@ ALLOCATE (p2(ndim))
 p1 = 0.d0
 p2 = 0.d0
 mindist = 0.d0
-CALL getClosest(np, ndim, all_pts, p1, p2, mindist, verb=1)
+
+cputlabel = 'getClosest'
+CALL measure_cpu_time(cput1, msg=cputlabel)
+CALL getClosest(np, ndim, all_pts, p1, p2, mindist, verb=0)
+CALL measure_cpu_time(cput1, msg=cputlabel)
 
 DEALLOCATE (all_pts)
 
@@ -46,6 +53,9 @@ CALL writeResultsToStd(mindist, ndim, p1, p2)
 
 ! write results (file)
 CALL writeResultsToFile(outfile, ndim, p1, p2)
+
+! output cputime
+CALL measure_cpu_time(cput)
 
 DEALLOCATE (p1)
 DEALLOCATE (p2)

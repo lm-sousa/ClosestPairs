@@ -95,7 +95,7 @@ IF (ndim.GE.2) THEN
        WRITE(8,114) domain(3, :)
    END IF
 END IF
-110 FORMAT (I4, T20, '# np, number of points')
+110 FORMAT (I10, T20, '# np, number of points')
 111 FORMAT (I4, T20, '# ndim, number of dimensions')
 112 FORMAT (F7.2, ', ', F7.2, T20, '# xmin, xmax')
 113 FORMAT (F7.2, ', ', F7.2, T20, '# ymin, ymax')

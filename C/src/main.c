@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define dimensionIndex_t uint16_t
 #define pointIndex_t uint64_t
@@ -18,7 +19,12 @@ double *points = NULL;
 
 #define getPointIndex(pointNumber) (dims * pointNumber)
 
+clock_t timePoint[9];
+double timeDiff;
+
 int main(int argc, char const *argv[]) {
+
+    timePoint[0] = clock();
 
     if (argc < 3) {
         printf("Usage: <executable> inputFile.txt outputFile.txt\n");
@@ -39,6 +45,8 @@ int main(int argc, char const *argv[]) {
         fclose(fi);
         return -1;
     }
+
+    timePoint[1] = clock();
 
     numValuesRead = fscanf(fi, "%lu", &numberOfPoints);
     if (numValuesRead != 1) {
@@ -63,6 +71,8 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
+    timePoint[2] = clock();
+
     dimensionData = (double *)malloc(2 * sizeof(double) * dims);
     if (dimensionData == NULL) {
         fclose(fi);
@@ -80,6 +90,8 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
+    timePoint[3] = clock();
+
     for (dimensionIndex_t i = 0; i < dims; i++) {
         numValuesRead =
             fscanf(fi, "%lf, %lf", &dimensionMin(i), &dimensionMax(i));
@@ -92,6 +104,8 @@ int main(int argc, char const *argv[]) {
             return -1;
         }
     }
+
+    timePoint[4] = clock();
 
     for (pointIndex_t point = 0; point < numberOfPoints; point++) {
         for (dimensionIndex_t dim = 0; dim < dims; dim++) {
@@ -108,6 +122,8 @@ int main(int argc, char const *argv[]) {
             }
         }
     }
+
+    timePoint[5] = clock();
 
     pointIndex_t bestPair[2];
     double minDistance = DBL_MAX;
@@ -132,6 +148,8 @@ int main(int argc, char const *argv[]) {
         }
     }
 
+    timePoint[6] = clock();
+
     for (uint8_t i = 0; i < 2; i++) {
         for (dimensionIndex_t dim = 0; dim < dims; dim++) {
             fprintf(fo, "%lf ", points[getPointIndex(bestPair[i]) + dim]);
@@ -139,9 +157,36 @@ int main(int argc, char const *argv[]) {
         fprintf(fo, "\n");
     }
 
+    timePoint[7] = clock();
+
     fclose(fi);
     fclose(fo);
     free(dimensionData);
     free(points);
+
+    timePoint[8] = clock();
+
+    printf("\nD: %hu; N: %lu\n", dims, numberOfPoints);
+    printf("\nTime elapsed in miliseconds:\n");
+    printf("\tProgram setup ----- : %6.3lf\n",
+           (double)(timePoint[0]) / CLOCKS_PER_SEC * 1000);
+    printf("\tOpening files ----- : %6.3lf\n",
+           (double)(timePoint[1] - timePoint[0]) / CLOCKS_PER_SEC * 1000);
+    printf("\tReading header ---- : %6.3lf\n",
+           (double)(timePoint[2] - timePoint[1]) / CLOCKS_PER_SEC * 1000);
+    printf("\tAllocating memory - : %6.3lf\n",
+           (double)(timePoint[3] - timePoint[2]) / CLOCKS_PER_SEC * 1000);
+    printf("\tReading dimensions  : %6.3lf\n",
+           (double)(timePoint[4] - timePoint[3]) / CLOCKS_PER_SEC * 1000);
+    printf("\tReading points ---- : %6.3lf\n",
+           (double)(timePoint[5] - timePoint[4]) / CLOCKS_PER_SEC * 1000);
+    printf("\tFinding closest pair: %6.3lf\n",
+           (double)(timePoint[6] - timePoint[5]) / CLOCKS_PER_SEC * 1000);
+    printf("\tWriting output file : %6.3lf\n",
+           (double)(timePoint[7] - timePoint[6]) / CLOCKS_PER_SEC * 1000);
+    printf("\tCleaning up ------- : %6.3lf\n",
+           (double)(timePoint[8] - timePoint[7]) / CLOCKS_PER_SEC * 1000);
+    printf("\nTotal time elapsed: %6.3lf ms\n",
+           (double)(timePoint[8]) / CLOCKS_PER_SEC * 1000);
     return 0;
 }

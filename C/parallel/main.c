@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "closestpair.h"
 #include "mergesort.h"
 #include "types.h"
 
@@ -268,9 +269,11 @@ int main(int argc, char *argv[]) {
                  MPI_DOUBLE, partialArray, partialArraySize2[mpi.id],
                  MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    //////////////////////////////
-    // TODO: Run algorithm here //
-    //////////////////////////////
+    pointIndex_t bestPair[2];
+    double minDistance;
+    closestPair(partialArray, bestPair, &minDistance,
+                partialArraySize2[mpi.id] / dims, dims);
+
 
     for (int i = 2; i <= mpi.processes; i <<= 1) {
         int currentSize = partialArraySize2[mpi.id];

@@ -254,7 +254,7 @@ int main(int argc, char *argv[]) {
     // Compute the closest pair
     ////////////////////////////////
 
-    partialArray = (double *)malloc(sizeof(double) * partialArraySize[mpi.id]);
+    partialArray = (double *)malloc(sizeof(double) * partialArraySize2[mpi.id]);
     if (partialArray == NULL) {
         fclose(fi);
         fclose(fo);
@@ -328,17 +328,21 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if (mpi.id == 0) {
     free(partialArray);
+    }
+
+    timePoint[8] = clock();
 
     if (mpi.id == 0) {
-        timePoint[8] = clock();
+        timePoint[9] = clock();
 
         fclose(fi);
         fclose(fo);
         free(dimensionData);
         free(points);
 
-        timePoint[9] = clock();
+        timePoint[10] = clock();
 
         printf("\nD: %hu; N: %lu\n", dims, numberOfPoints);
         printf("\nTime elapsed in miliseconds:\n");

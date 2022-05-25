@@ -22,7 +22,7 @@ double *points = NULL;
 
 #define getPointIndex(pointNumber) (dims * (pointNumber))
 
-clock_t timePoint[10];
+clock_t timePoint[11];
 double timeDiff;
 
 typedef struct {
@@ -146,14 +146,16 @@ int main(int argc, char *argv[]) {
     MPI_Bcast(&numberOfPoints, 1, MPI_LONG, 0, MPI_COMM_WORLD);
 
     int partialArraySize[mpi.processes];
+    int partialArraySize2[mpi.processes];
     int partialArrayDisplacement[mpi.processes];
     for (int i = 0; i < mpi.processes; i++) {
         partialArraySize[i] = (numberOfPoints / mpi.processes +
                                (i < (numberOfPoints % mpi.processes))) *
                               dims;
+        partialArraySize2[i] = partialArraySize[i];
+
         if (i == 0) {
             partialArrayDisplacement[i] = 0;
-
         } else {
             partialArrayDisplacement[i] =
                 partialArrayDisplacement[i - 1] + partialArraySize[i - 1];
@@ -230,7 +232,6 @@ int main(int argc, char *argv[]) {
                      partialArraySize[mpi.id + (i / 2)], MPI_DOUBLE,
                      mpi.id + (i / 2), MPI_ANY_TAG, MPI_COMM_WORLD, &st);
 
-            // merge partialArray and recvPartialArray into newArray
             pointIndex_t leftPoint = 0;
             pointIndex_t middlePoint = (currentSize) / dims - 1;
             pointIndex_t rightPoint = (partialArraySize[mpi.id]) / dims - 1;
@@ -239,22 +240,95 @@ int main(int argc, char *argv[]) {
                   dims);
 
             free(newArray);
-
-            printf("Process %d: sorted = %d -->", mpi.id,
-                   partialArraySize[mpi.id] / dims);
-            for (pointIndex_t i = 0; i < partialArraySize[mpi.id] / dims; i++) {
-                printf(" %lE", partialArray[getPointIndex(i)]);
-            }
-            printf("\n");
-            fflush(stdout);
         }
     }
 
     if (mpi.id == 0) {
-        free(partialArray);
+        free(points);
+        points = partialArray;
     }
 
     timePoint[7] = clock();
+
+    ////////////////////////////////
+    // Compute the closest pair
+    ////////////////////////////////
+
+    partialArray = (double *)malloc(sizeof(double) * partialArraySize[mpi.id]);
+    if (partialArray == NULL) {
+        fclose(fi);
+        fclose(fo);
+        free(dimensionData);
+        free(points);
+        printf("Error allocating 'partialArray'.\n");
+        return -1;
+    }
+
+    MPI_Scatterv(points, partialArraySize2, partialArrayDisplacement,
+                 MPI_DOUBLE, partialArray, partialArraySize2[mpi.id],
+                 MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    //////////////////////////////
+    // TODO: Run algorithm here //
+    //////////////////////////////
+
+    for (int i = 2; i <= mpi.processes; i <<= 1) {
+        int currentSize = partialArraySize2[mpi.id];
+        for (int j = 0; j < mpi.processes; j += i) {
+            partialArraySize2[j] += partialArraySize2[j + (i / 2)];
+        }
+
+        if (mpi.id % i == (i / 2)) {
+            // sent to id - (i/2)
+            MPI_Send(partialArray, partialArraySize2[mpi.id], MPI_DOUBLE,
+                     mpi.id - (i / 2), 0, MPI_COMM_WORLD);
+            free(partialArray);
+        } else if (mpi.id % i == 0) {
+            // recv from id + (i/2)
+            partialArray = (double *)realloc(
+                partialArray, sizeof(double) * partialArraySize2[mpi.id]);
+            if (partialArray == NULL) {
+                fclose(fi);
+                fclose(fo);
+                free(dimensionData);
+                free(points);
+                printf("Error reallocating 'partialArray'.\n");
+                return -1;
+            }
+
+            double *newArray =
+                (double *)malloc(sizeof(double) * partialArraySize2[mpi.id]);
+            if (newArray == NULL) {
+                fclose(fi);
+                fclose(fo);
+                free(dimensionData);
+                free(points);
+                free(partialArray);
+                printf("Error allocating 'newArray'.\n");
+                return -1;
+            }
+
+            MPI_Recv(&partialArray[currentSize],
+                     partialArraySize2[mpi.id + (i / 2)], MPI_DOUBLE,
+                     mpi.id + (i / 2), MPI_ANY_TAG, MPI_COMM_WORLD, &st);
+
+            ////////////////////////////////////
+            // TODO: Run merge algorithm here //
+            ////////////////////////////////////
+            /*
+            pointIndex_t leftPoint = 0;
+            pointIndex_t middlePoint = (currentSize) / dims - 1;
+            pointIndex_t rightPoint = (partialArraySize2[mpi.id]) / dims - 1;
+
+            merge(partialArray, newArray, leftPoint, middlePoint, rightPoint,
+                  dims);
+            */
+
+            free(newArray);
+        }
+    }
+
+    free(partialArray);
 
     if (mpi.id == 0) {
         timePoint[8] = clock();
@@ -282,14 +356,16 @@ int main(int argc, char *argv[]) {
                (double)(timePoint[5] - timePoint[4]) / CLOCKS_PER_SEC * 1000);
         printf("\tReading points ---- : %6.3lf\n",
                (double)(timePoint[6] - timePoint[5]) / CLOCKS_PER_SEC * 1000);
-        printf("\tFinding closest pair: %6.3lf\n",
+        printf("\tSorting points ---- : %6.3lf\n",
                (double)(timePoint[7] - timePoint[6]) / CLOCKS_PER_SEC * 1000);
-        printf("\tWriting output file : %6.3lf\n",
+        printf("\tFinding closest pair: %6.3lf\n",
                (double)(timePoint[8] - timePoint[7]) / CLOCKS_PER_SEC * 1000);
-        printf("\tCleaning up ------- : %6.3lf\n",
+        printf("\tWriting output file : %6.3lf\n",
                (double)(timePoint[9] - timePoint[8]) / CLOCKS_PER_SEC * 1000);
+        printf("\tCleaning up ------- : %6.3lf\n",
+               (double)(timePoint[10] - timePoint[9]) / CLOCKS_PER_SEC * 1000);
         printf("\nTotal time elapsed: %6.3lf ms\n",
-               (double)(timePoint[9]) / CLOCKS_PER_SEC * 1000);
+               (double)(timePoint[10]) / CLOCKS_PER_SEC * 1000);
     }
 
     MPI_Finalize();

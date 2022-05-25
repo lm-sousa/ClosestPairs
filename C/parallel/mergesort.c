@@ -52,23 +52,17 @@ void merge(double *outputArray, double *inputArray, pointIndex_t leftPoint,
         }
     }
 
-    while (leftCursor <= getPointIndex(middlePoint)) {
-        for (dimensionIndex_t i = 0; i < dimensions; i++) {
-            inputArray[outputCursor++] = outputArray[leftCursor++];
-        }
+    while (leftCursor < (getPointIndex(middlePoint) + dimensions)) {
+        inputArray[outputCursor++] = outputArray[leftCursor++];
     }
 
-    while (rightCursor <= getPointIndex(rightPoint)) {
-        for (dimensionIndex_t i = 0; i < dimensions; i++) {
-            inputArray[outputCursor++] = outputArray[rightCursor++];
-        }
+    while (rightCursor < (getPointIndex(rightPoint) + dimensions)) {
+        inputArray[outputCursor++] = outputArray[rightCursor++];
     }
 
     for (pointIndex_t j = getPointIndex(leftPoint);
-         j <= getPointIndex(rightPoint); j += dimensions) {
-        for (dimensionIndex_t i = 0; i < dimensions; i++) {
-            outputArray[j + i] = inputArray[j + i];
-        }
+         j < (getPointIndex(rightPoint) + dimensions); j++) {
+        outputArray[j] = inputArray[j];
     }
 
     return;

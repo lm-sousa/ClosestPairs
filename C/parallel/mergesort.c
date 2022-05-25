@@ -4,33 +4,35 @@
 
 void mergeSortRecursive(double *outputArray, double *inputArray,
                         pointIndex_t leftPoint, pointIndex_t rightPoint,
-                        dimensionIndex_t dimensions) {
+                        dimensionIndex_t dimensions,
+                        dimensionIndex_t dimensionToSortBy) {
 
     if (leftPoint < rightPoint) {
         pointIndex_t middlePoint = (leftPoint + rightPoint) / 2;
         mergeSortRecursive(outputArray, inputArray, leftPoint, middlePoint,
-                           dimensions);
+                           dimensions, dimensionToSortBy);
         mergeSortRecursive(outputArray, inputArray, middlePoint + 1, rightPoint,
-                           dimensions);
+                           dimensions, dimensionToSortBy);
         merge(outputArray, inputArray, leftPoint, middlePoint, rightPoint,
-              dimensions);
+              dimensions, dimensionToSortBy);
     }
 
     return;
 }
 
 void mergeSort(double *outputArray, double *inputArray,
-               pointIndex_t inputArraySize, dimensionIndex_t dimensions) {
+               pointIndex_t inputArraySize, dimensionIndex_t dimensions,
+               dimensionIndex_t dimensionToSortBy) {
 
     pointIndex_t numberOfPoints = inputArraySize / dimensions;
     mergeSortRecursive(outputArray, inputArray, 0, numberOfPoints - 1,
-                       dimensions);
+                       dimensions, dimensionToSortBy);
     return;
 }
 
 void merge(double *outputArray, double *inputArray, pointIndex_t leftPoint,
            pointIndex_t middlePoint, pointIndex_t rightPoint,
-           dimensionIndex_t dimensions) {
+           dimensionIndex_t dimensions, dimensionIndex_t dimensionToSortBy) {
 
     pointIndex_t leftCursor = getPointIndex(leftPoint);
     pointIndex_t rightCursor = getPointIndex(middlePoint + 1);
@@ -38,7 +40,8 @@ void merge(double *outputArray, double *inputArray, pointIndex_t leftPoint,
 
     while ((leftCursor <= getPointIndex(middlePoint)) &&
            (rightCursor <= getPointIndex(rightPoint))) {
-        if (outputArray[leftCursor] < outputArray[rightCursor]) {
+        if (outputArray[leftCursor + dimensionToSortBy] <
+            outputArray[rightCursor + dimensionToSortBy]) {
             for (dimensionIndex_t i = 0; i < dimensions; i++) {
                 inputArray[outputCursor++] = outputArray[leftCursor++];
             }

@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
                  partialArray, partialArraySize[mpi.id], MPI_DOUBLE, 0,
                  MPI_COMM_WORLD);
 
-    mergeSort(partialArray, partialArray2, partialArraySize[mpi.id], dims);
+    mergeSort(partialArray, partialArray2, partialArraySize[mpi.id], dims, 0);
     free(partialArray2);
 
     for (int i = 2; i <= mpi.processes; i <<= 1) {
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
             pointIndex_t rightPoint = (partialArraySize[mpi.id]) / dims - 1;
 
             merge(partialArray, newArray, leftPoint, middlePoint, rightPoint,
-                  dims);
+                  dims, 0);
 
             free(newArray);
         }

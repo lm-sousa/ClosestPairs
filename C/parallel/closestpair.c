@@ -27,5 +27,3 @@ void closestPair(double *points, pointIndex_t bestPair[2], double *minDistance,
         }
     }
 }
-
-void closestPairMerge(double *a) { return; }

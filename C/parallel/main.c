@@ -269,25 +269,54 @@ int main(int argc, char *argv[]) {
                  MPI_DOUBLE, partialArray, partialArraySize2[mpi.id],
                  MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    pointIndex_t bestPair[2];
-    double minDistance;
-    closestPair(partialArray, bestPair, &minDistance,
+    BestPair bestPair;
+    MinDistance minDistance;
+    closestPair(partialArray, bestPair.self, &minDistance.self,
                 partialArraySize2[mpi.id] / dims, dims);
+    bestPair.self[0] += partialArrayDisplacement[mpi.id] / dims;
+    bestPair.self[1] += partialArrayDisplacement[mpi.id] / dims;
 
+    int iter = 0;
+    printf("%d;%d: %lu-%lu --> %lf\n", mpi.id, iter++, bestPair.self[0],
+           bestPair.self[1], minDistance.self);
 
     for (int i = 2; i <= mpi.processes; i <<= 1) {
         int currentSize = partialArraySize2[mpi.id];
-        for (int j = 0; j < mpi.processes; j += i) {
-            partialArraySize2[j] += partialArraySize2[j + (i / 2)];
-        }
+
+        MPI_Allreduce(&minDistance.self, &minDistance.best, 1, MPI_DOUBLE,
+                      MPI_MIN, MPI_COMM_WORLD);
 
         if (mpi.id % i == (i / 2)) {
             // sent to id - (i/2)
-            MPI_Send(partialArray, partialArraySize2[mpi.id], MPI_DOUBLE,
-                     mpi.id - (i / 2), 0, MPI_COMM_WORLD);
+            int sendSize = 0;
+            while (sendSize < currentSize) {
+                if ((partialArray[sendSize] - partialArray[getPointIndex(0)]) <
+                    minDistance.best) {
+                    sendSize += dims;
+                } else {
+                    break;
+                }
+            }
+            MPI_Send(&sendSize, 1, MPI_INTEGER, mpi.id - (i / 2), 0,
+                     MPI_COMM_WORLD);
+            MPI_Send(bestPair.self, 2, MPI_LONG, mpi.id - (i / 2), 1,
+                     MPI_COMM_WORLD);
+            MPI_Send(&minDistance.self, 1, MPI_DOUBLE, mpi.id - (i / 2), 2,
+                     MPI_COMM_WORLD);
+            MPI_Send(partialArray, sendSize, MPI_DOUBLE, mpi.id - (i / 2), 3,
+                     MPI_COMM_WORLD);
             free(partialArray);
         } else if (mpi.id % i == 0) {
             // recv from id + (i/2)
+            int recvSize;
+            MPI_Recv(&recvSize, 1, MPI_INTEGER, mpi.id + (i / 2), 0,
+                     MPI_COMM_WORLD, &st);
+            MPI_Recv(bestPair.recv, 2, MPI_LONG, mpi.id + (i / 2), 1,
+                     MPI_COMM_WORLD, &st);
+            MPI_Recv(&minDistance.recv, 1, MPI_DOUBLE, mpi.id + (i / 2), 2,
+                     MPI_COMM_WORLD, &st);
+            partialArraySize2[mpi.id] += recvSize;
+
             partialArray = (double *)realloc(
                 partialArray, sizeof(double) * partialArraySize2[mpi.id]);
             if (partialArray == NULL) {
@@ -299,45 +328,88 @@ int main(int argc, char *argv[]) {
                 return -1;
             }
 
-            double *newArray =
-                (double *)malloc(sizeof(double) * partialArraySize2[mpi.id]);
-            if (newArray == NULL) {
-                fclose(fi);
-                fclose(fo);
-                free(dimensionData);
-                free(points);
-                free(partialArray);
-                printf("Error allocating 'newArray'.\n");
-                return -1;
+            MPI_Recv(&partialArray[currentSize], recvSize, MPI_DOUBLE,
+                     mpi.id + (i / 2), 3, MPI_COMM_WORLD, &st);
+
+            pointIndex_t leftPointIndex =
+                getPointIndex((currentSize / dims) - 1);
+            pointIndex_t middlePointIndex = leftPointIndex;
+            pointIndex_t rightPointIndex =
+                getPointIndex((partialArraySize2[mpi.id] / dims) - 1);
+            while (leftPointIndex > 0) {
+                if ((partialArray[middlePointIndex] -
+                     partialArray[leftPointIndex]) < minDistance.best) {
+                    leftPointIndex -= dims;
+                } else {
+                    break;
+                }
             }
 
-            MPI_Recv(&partialArray[currentSize],
-                     partialArraySize2[mpi.id + (i / 2)], MPI_DOUBLE,
-                     mpi.id + (i / 2), MPI_ANY_TAG, MPI_COMM_WORLD, &st);
-
-            ////////////////////////////////////
-            // TODO: Run merge algorithm here //
-            ////////////////////////////////////
             /*
-            pointIndex_t leftPoint = 0;
-            pointIndex_t middlePoint = (currentSize) / dims - 1;
-            pointIndex_t rightPoint = (partialArraySize2[mpi.id]) / dims - 1;
-
-            merge(partialArray, newArray, leftPoint, middlePoint, rightPoint,
-                  dims);
+            printf("%d;%d c:%d, r:%d, t:%d ---", mpi.id, iter, currentSize,
+                   recvSize, partialArraySize2[mpi.id]);
+            for (int i = 0; i < partialArraySize2[mpi.id]; i += dims) {
+                printf(" %lE", partialArray[i]);
+            }
+            printf("\n");
+            printf("%d;%d l:%lu, m:%lu, r:%lu\n", mpi.id, iter, leftPointIndex,
+                   middlePointIndex, rightPointIndex);
+            fflush(stdout);
             */
 
-            free(newArray);
+            pointIndex_t stripBestPair[2];
+            double stripMinDistance;
+
+            closestPair(&partialArray[leftPointIndex], stripBestPair,
+                        &stripMinDistance,
+                        (rightPointIndex - leftPointIndex) / dims + 1, dims);
+
+            if (stripMinDistance < minDistance.self) {
+                minDistance.self = stripMinDistance;
+                bestPair.self[0] =
+                    stripBestPair[0] +
+                    (leftPointIndex + partialArrayDisplacement[mpi.id]) / dims;
+                bestPair.self[1] =
+                    stripBestPair[1] +
+                    (leftPointIndex + partialArrayDisplacement[mpi.id]) / dims;
+            }
+
+            if (minDistance.recv < minDistance.self) {
+                minDistance.self = minDistance.recv;
+                bestPair.self[0] = bestPair.recv[0];
+                bestPair.self[1] = bestPair.recv[1];
+            }
+
+            /*
+            printf("%d;%d ---", mpi.id, iter++);
+            for (int i = leftPointIndex; i <= rightPointIndex; i += dims) {
+                printf(" %lE", partialArray[i]);
+            }
+            printf("\n");
+            fflush(stdout);
+            */
+
+            printf("%d;%d: %lu-%lu --> %lf\n", mpi.id, iter++, bestPair.self[0],
+                   bestPair.self[1], minDistance.self);
         }
     }
 
     if (mpi.id == 0) {
-    free(partialArray);
+        free(partialArray);
     }
 
     timePoint[8] = clock();
 
     if (mpi.id == 0) {
+
+        for (uint8_t i = 0; i < 2; i++) {
+            for (dimensionIndex_t dim = 0; dim < dims; dim++) {
+                fprintf(fo, "%lf ",
+                        points[getPointIndex(bestPair.self[i]) + dim]);
+            }
+            fprintf(fo, "\n");
+        }
+
         timePoint[9] = clock();
 
         fclose(fi);

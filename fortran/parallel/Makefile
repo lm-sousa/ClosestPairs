@@ -9,24 +9,29 @@ EXECDIR = parallel
 # Source
 SRC = closest_mpi.f90
 
+# Other sources
+# SRC +=
+
 OBJ = $(SRC:.f90=.o)
 MODDIR = ../mod
-MODSRC = $(MODDIR)/closest_mod.f90 $(MODDIR)/sort_mod.f90
-MODOBJ = closest_mod.o sort_mod.o
+MODSRC = $(MODDIR)/closest_mod.f90 $(MODDIR)/sort_mod.f90 $(MODDIR)/mpi_mod.f90
+# MODOBJ = $(MODSRC:.f90=.o)
+MODOBJ = closest_mod.o sort_mod.o mpi_mod.o
 
-
-#################################################
-##
-## READ COMPILATION FLAGS FROM
-## makefile.cfg
-##
-#################################################
-include ../makefile.cfg
 
 # Compiler (GCC)
 FC = mpif90
-# flags moved to ../makefile.cfg
-FFLAGS += -fallow-argument-mismatch
+# move flags to general Makefile
+FFLAGS = -O0
+
+## Debug
+FFLAGS += -g -fbacktrace
+FFLAGS += -Wall -Wextra -Wconversion 
+# FFLAGS += -pedantic
+FFLAGS += -ffpe-trap=zero,overflow,underflow
+FFLAGS += -fbounds-check
+FFLAGS += -fallow-argument-mismatch 
+# FFLAGS += -Wargument-mismatch -Werror
 
 .PHONY: all clean
 

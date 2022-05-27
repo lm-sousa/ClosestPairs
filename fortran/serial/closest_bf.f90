@@ -5,16 +5,7 @@
 !!  encoding utf-8
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!!! REQUIREMENTS !!!
-!! - [x] Brute force algorithm
-!!   - [x] Allow for 1, 2 and 3D points to be specified
-!!   - [x] Read points from a file specified as an argument
-!! - [x] external code generates points randomly
-!! - [x] Coordinates are DOUBLE.
-!! - [x] Resulting points written on a separate file.
-!!!!!!!!!!!!!!!!!!!
-
-PROGRAM closest_serial
+PROGRAM closest_bf
 
 ! USE iso_fortran_env
 USE closest_mod  ! contains variable declarations, subroutines
@@ -22,6 +13,8 @@ USE closest_mod  ! contains variable declarations, subroutines
 IMPLICIT NONE
 
 ! variable declaration: all in closest_mod
+
+verb = 0  ! verbosity level (global to all subroutines)
 
 ! start measuring cputime
 CALL measure_cpu_time(cput)
@@ -32,7 +25,7 @@ CALL parseArguments(infile, outfile)
 ! read from file 
 np = 0
 ndim = 2
-CALL readPoints(infile, np, ndim, domain, all_pts, verb=0)
+CALL readPoints(infile, np, ndim, domain, all_pts)
 
 ! calculate closest
 ALLOCATE (p1(ndim))
@@ -43,16 +36,16 @@ mindist = 0.d0
 
 cputlabel = 'getClosest'
 CALL measure_cpu_time(cput1, msg=cputlabel)
-CALL getClosest(np, ndim, all_pts, p1, p2, mindist, verb=0)
+CALL getClosest(np, all_pts, p1, p2, mindist)
 CALL measure_cpu_time(cput1, msg=cputlabel)
 
 DEALLOCATE (all_pts)
 
 ! write results (stdout - optional)
-CALL writeResultsToStd(mindist, ndim, p1, p2)
+CALL writeResultsToStd(mindist, p1, p2)
 
 ! write results (file)
-CALL writeResultsToFile(outfile, ndim, p1, p2)
+CALL writeResultsToFile(outfile, p1, p2)
 
 ! output cputime
 CALL measure_cpu_time(cput)
@@ -60,4 +53,4 @@ CALL measure_cpu_time(cput)
 DEALLOCATE (p1)
 DEALLOCATE (p2)
 
-END PROGRAM closest_serial
+END PROGRAM closest_bf

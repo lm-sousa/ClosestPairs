@@ -4,7 +4,9 @@
 
  - `aux/` : auxiliary programs (e.g., point generator);
  - `serial/` : serial (brute force) version of ClosestPairs;
- - `parallel/` : parallel version of ClosestPairs (requires `mpif90`).
+ - `parallel/` : parallel version of ClosestPairs (requires `mpif90`);
+ - `divide-and-conquer-seq` : sequential Divide-and-Conquer approach;
+ - `divide-and-conquer-mpi` : parallel version of Divide-and-Conquer approach;
 
 ## Instructions:
 
@@ -15,15 +17,22 @@ Compilation (requires `gfortran` and an MPI wrapper `mpif90`):
  
 One can also compile separate tools by:
 
- - `make closest_serial`
+ - `make gen_points`
+ - `make closest_bf`
  - `make closest_mpi`
+ - `make closest_dc`
+ - `make closest_dc_mpi`
  
-Or heading into `serial` or `parallel` directories and running `make`.
+Or heading into a specific directory and running `make`.
  
-Compilation flags can be defined in base Makefile.
+Compilation flags can be defined in makefile.cfg (flags for parallel code 
+defined infividually).
  
 ## Checklist:
 
 - [x] Serial (brute-force) code.
 - [x] Random point generator.
-- [ ] Parallel (MPI) version.
+- [x] Parallel (MPI) version.
+- [x] Divide and conquer method (sequential)
+- [x] Divide and conquer method (parallel)
+- [ ] Parallel quicksort/mergesort

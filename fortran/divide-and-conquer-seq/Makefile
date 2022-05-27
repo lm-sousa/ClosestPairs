@@ -3,20 +3,20 @@
 #######################################################################
 
 # program name
-EXEC = closest_bf
-EXECDIR = serial
+EXEC = closest_dc
+EXECDIR = divide-and-conquer-seq
 
 # Source
-SRC = closest_bf.f90
+SRC = closest_dc.f90
 
 # Other sources
 # SRC +=
 
 OBJ = $(SRC:.f90=.o)
 MODDIR = ../mod
-MODSRC = $(MODDIR)/closest_mod.f90
+MODSRC = $(MODDIR)/closest_mod.f90 $(MODDIR)/sort_mod.f90
 # MODOBJ = $(MODSRC:.f90=.o)
-MODOBJ = closest_mod.o
+MODOBJ = closest_mod.o sort_mod.o
 
 
 #################################################
@@ -29,13 +29,6 @@ include ../makefile.cfg
 
 # Compiler (GCC)
 FC = gfortran
-# flags moved to ../makefile.cfg
-# FFLAGS += -O0
-# ## Debug
-# FFLAGS += -g -fbacktrace
-# FFLAGS += -Wall -Wextra -Wconversion -pedantic
-# FFLAGS += -ffpe-trap=zero,overflow,underflow
-# FFLAGS += -fbounds-check
 
 .PHONY: all clean
 
@@ -47,6 +40,10 @@ $(EXEC) : $(MODOBJ) $(OBJ) ;
 
 # module compilation
 closest_mod.o : $(MODDIR)/closest_mod.f90;
+	@echo "compiling module $<"
+	$(FC) $(FFLAGS) -c $<
+
+sort_mod.o : $(MODDIR)/sort_mod.f90;
 	@echo "compiling module $<"
 	$(FC) $(FFLAGS) -c $<
 

@@ -87,10 +87,10 @@ CONTAINS
       ! INTEGER :: i, j, k
       INTEGER :: ir, jstack, l, b
       INTEGER, DIMENSION(NSTACK) :: istack
+      REAL :: cputime
       REAL(KIND=REAL64) :: a
 
-      REAL :: cputime = -1.0
-
+      cputime = -1.
       cputlabel = 'quicksort'
       CALL measure_cpu_time(cputime, cputlabel)
    
@@ -100,7 +100,7 @@ CONTAINS
       sorted = arr
       isorted = [ (i, i=1,n) ]
    
-      DO 
+      outer: DO 
          ! insertion sort when subarray is small enough
          IF ((ir - l).LT.M) THEN
             DO j = l+1, ir
@@ -115,7 +115,7 @@ CONTAINS
                sorted(i+1) = a
                isorted(i+1) = b
             END DO
-            IF (jstack.EQ.0) RETURN
+            IF (jstack.EQ.0) EXIT outer
             ir = istack(jstack)
             l = istack(jstack-1)
             jstack = jstack - 2
@@ -146,7 +146,7 @@ CONTAINS
                END DO
                DO
                   j = j - 1
-                  IF (sorted(j).LT.a) EXIT
+                  IF (sorted(j).LE.a) EXIT
                END DO
                IF (j.LT.i) EXIT
                CALL swap(sorted(i), sorted(j))
@@ -170,100 +170,11 @@ CONTAINS
                l = i
             END IF
          END IF
-      END DO
+      END DO outer
 
       CALL measure_cpu_time(cputime, cputlabel)
    
    END SUBROUTINE quickSortMod
-
-   SUBROUTINE quickSort (n, arr)
-   
-      ! Quicksort algorithm 
-      ! From Numerical Recipes (1992) and (2007) - F77 and C++
-      ! Implementation combines parts from both versions
-      ! Modification: uses double precision
-   
-      INTEGER, INTENT(IN) :: n
-         ! number of points in array (1D) arr
-   
-      REAL(KIND=REAL64), DIMENSION(n), INTENT(INOUT) :: arr
-         ! array to sort, will get replaced
-   
-      INTEGER, PARAMETER :: M = 7
-         ! size of subarray sorted by straight insertion
-      INTEGER, PARAMETER :: NSTACK = 64
-         ! required auxiliary storage
-      ! INTEGER :: i, j, k
-      INTEGER :: ir, jstack, l
-      INTEGER, DIMENSION(NSTACK) :: istack
-      REAL(KIND=REAL64) :: a, temp
-   
-      jstack = 0
-      l = 1
-      ir = n
-   
-      DO 
-         ! insertion sort when subarray is small enough
-         IF ((ir - l).LT.M) THEN
-            DO j = l+1, ir
-               a = arr(j)
-               DO i = j-1, l, -1
-                  IF (arr(i).LE.a) EXIT
-                  arr(i+1) = arr(i)
-               END DO
-               ! i = l - 1  ! (from 1992 implementation, not needed)
-               arr(i+1) = a
-            END DO
-            IF (jstack.EQ.0) RETURN
-            ir = istack(jstack)
-            l = istack(jstack-1)
-            jstack = jstack - 2
-         ELSE
-            k = (l + ir) / 2
-            CALL swap(arr(k), arr(l+1))
-            IF (arr(l).GT.arr(ir)) THEN
-               CALL swap(arr(l), arr(ir))
-            END IF
-            IF (arr(l+1).GT.arr(ir)) THEN
-               CALL swap(arr(l+1), arr(ir))
-            END IF
-            IF (arr(l).GT.arr(l+1)) THEN
-               CALL swap(arr(l), arr(l+1))
-            END IF
-            i = l + 1
-            j = ir
-            a = arr(l+1)
-            DO
-               DO
-                  i = i + 1
-                  IF (arr(i).GE.a) EXIT
-               END DO
-               DO
-                  j = j - 1
-                  IF (arr(j).LT.a) EXIT
-               END DO
-               IF (j.LT.i) EXIT
-               CALL swap(arr(i), arr(j))
-            END DO
-            arr(l+1) = arr(j)
-            arr(j) = a
-            jstack = jstack + 2
-            ! Push pointers to larger subarray on stack, process smaller 
-            ! subarray immediately
-            IF (jstack.GT.NSTACK) WRITE(*, *) "NSTACK too small in sort"
-            IF ((ir - i + 1).GE.(j-1)) THEN
-               istack(jstack) = ir
-               istack(jstack - 1) = i
-               ir = j - 1
-            ELSE
-               istack(jstack) = j - 1
-               istack(jstack - 1) = l
-               l = i
-            END IF
-         END IF
-      END DO
-   
-   END SUBROUTINE quickSort
 
    SUBROUTINE swap (val1, val2)
 

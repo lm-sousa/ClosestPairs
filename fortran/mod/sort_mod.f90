@@ -26,10 +26,6 @@ CONTAINS
 
       INTEGER :: iptr, itemp  ! index, pointer to smallest value
       REAL(KIND=REAL64) :: temp  ! temporary variable for swapping
-      REAL :: cputime = -1.0
-
-      cputlabel = 'selectionSort'
-      CALL measure_cpu_time(cputime, cputlabel)
 
       temp = 0.d0
       sorted = array
@@ -55,8 +51,6 @@ CONTAINS
             isorted(iptr) = itemp
          END IF
       END DO
-
-      CALL measure_cpu_time(cputime, cputlabel)
 
    END SUBROUTINE selectionSort
 
@@ -84,15 +78,10 @@ CONTAINS
       INTEGER, PARAMETER :: NSTACK = 64
          ! required auxiliary storage
    
-      ! INTEGER :: i, j, k
       INTEGER :: ir, jstack, l, b
       INTEGER, DIMENSION(NSTACK) :: istack
       REAL :: cputime
       REAL(KIND=REAL64) :: a
-
-      cputime = -1.
-      cputlabel = 'quicksort'
-      CALL measure_cpu_time(cputime, cputlabel)
    
       jstack = 0
       l = 1
@@ -171,8 +160,6 @@ CONTAINS
             END IF
          END IF
       END DO outer
-
-      CALL measure_cpu_time(cputime, cputlabel)
    
    END SUBROUTINE quickSortMod
 

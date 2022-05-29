@@ -28,7 +28,7 @@ OBJ = $(SRC:.f90=.o)
 include ../makefile.cfg
 
 # Compiler (GCC)
-FC = gfortran
+# FC = gfortran
 # flags moved to ../makefile.cfg
 # FFLAGS += -O0
 # ## Debug

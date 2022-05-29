@@ -19,36 +19,44 @@ MODSRC = $(MODDIR)/closest_mod.f90 $(MODDIR)/sort_mod.f90 $(MODDIR)/mpi_mod.f90
 MODOBJ = closest_mod.o sort_mod.o mpi_mod.o
 
 
+#################################################
+##
+## READ COMPILATION FLAGS FROM
+## makefile.cfg
+##
+#################################################
+include ../makefile.cfg
+
 # Compiler (GCC)
-FC = mpif90
+# MPIFC = mpif90
 # move flags to general Makefile
-FFLAGS = -O0
+# FFLAGS = -O0
 
 ## Debug
-FFLAGS += -g -fbacktrace
-FFLAGS += -Wall -Wextra -Wconversion 
-# FFLAGS += -pedantic
-FFLAGS += -ffpe-trap=zero,overflow,underflow
-FFLAGS += -fbounds-check
-FFLAGS += -fallow-argument-mismatch 
-# FFLAGS += -Wargument-mismatch -Werror
+# FFLAGS += -g -fbacktrace
+# FFLAGS += -Wall -Wextra -Wconversion 
+# # FFLAGS += -pedantic
+# FFLAGS += -ffpe-trap=zero,overflow,underflow
+# FFLAGS += -fbounds-check
+# FFLAGS += -fallow-argument-mismatch 
+# # FFLAGS += -Wargument-mismatch -Werror
 
 .PHONY: all clean
 
-all: $(EXEC);
+all: $(EXEC) ;
 	ln -sf $(EXECDIR)/$(EXEC) ../$(EXEC)
 
 $(EXEC) : $(MODOBJ) $(OBJ) ;
-	$(FC) $(FFLAGS) $^ -o $@
+	$(MPIFC) $(MPIFLAGS) $^ -o $@
 
 # module compilation
 %mod.o : $(MODDIR)/%mod.f90 ;
 	@echo "compiling module $<"
-	$(FC) $(FFLAGS) -c $<
+	$(MPIFC) $(MPIFLAGS) -c $<
 
 $(filter-out $(MODOBJ),%.o) : $(filter-out $(MODSRC),%.f90) $(MODOBJ) ;
 	@echo "compiling object $<"
-	$(FC) $(FFLAGS) -c $<
+	$(MPIFC) $(MPIFLAGS) -c $<
 
 clean : ;
 	rm -f *.o *.mod $(EXEC)

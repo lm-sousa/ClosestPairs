@@ -11,7 +11,7 @@ SRCDIR5 = divide-and-conquer-mpi
 
 .PHONY : all clean
 
-all: closest_bf closest_mpi gen_points closest_dc closest_dc_mpi; 
+all: closest_bf gen_points closest_dc closest_dc_mpi closest_mpi; 
 
 closest_bf : ;
 	rm -f closest_bf

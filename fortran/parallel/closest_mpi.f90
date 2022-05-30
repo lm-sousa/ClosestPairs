@@ -6,14 +6,6 @@
 !!  encoding: utf-8
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!!!!!!!!!!!!!!!!!!!!
-!!! IMPROVEMENTS !!!
-!! - improve consistency of tags
-!! - quickSort for large array sizes
-!! - non-blocking communication operations? 
-!! - do not store distances on getClosest
-!!!!!!!!!!!!!!!!!!!!
-
 PROGRAM closest_mpi
 
 USE sort_mod  ! sorting subroutines
@@ -59,45 +51,49 @@ REAL(KIND=REAL64), ALLOCATABLE, DIMENSION(:,:) :: all_strips
 REAL(KIND=REAL64), ALLOCATABLE, DIMENSION(:,:) :: rank_pts, strip_pts
    ! points for each rank, strip
 
+cpufile = 'cputime_mpi.csv'
+commfile = 'commtime_mpi.csv'
+cput = 0
+
 verb = 0
 root = 0  ! root rank is 0
 
 closest_rank = 0
 mindist_out = 0.d0
 reduce_mindist = 0.d0 ! mindist for reduce operation with MPI_MINLOC (dimension 2,
-                   ! value in dim 1, rank in dim 2 (DBLE)
+                      ! value in dim 1, rank in dim 2 (DBLE)
 
 strip_mindist = LARGE ! large value
 strip_location = 0.d0
 
+CALL CPU_TIME(cput(1))
 CALL MPI_Init (ierr)
 CALL MPI_Comm_rank (MPI_COMM_WORLD, rank, ierr)
 CALL MPI_Comm_size (MPI_COMM_WORLD, nranks, ierr)
-
-! rank 0 operations
-IF (rank.EQ.root) CALL measure_cpu_time(cput)
+CALL CPU_TIME(cput(2))
 
 ! read command line arguments (all ranks, so that any rank can output results)
- CALL parseArguments (infile, outfile)
+CALL parseArguments (infile, outfile)
+CALL CPU_TIME(cput(3))
 
 IF (rank.EQ.root) THEN
-   
    ! read from file 
    np = 0
    ndim = 2
    CALL readPoints (infile, np, ndim, domain, all_pts)
-
 END IF
 
 ! broadcast ndim
 tag = root
 CALL MPI_Barrier (MPI_COMM_WORLD, ierr)
+CALL CPU_TIME(cput(4))
 CALL MPI_Bcast (ndim, 1, MPI_INTEGER, root, MPI_COMM_WORLD, ierr)
+CALL CPU_TIME(cput(5))
+
 
 IF (rank.EQ.root) THEN
    
    ! SEQUENTIAL SORT
-   ! NOTE: Explore parallel sort (mergesort, quicksort)
    ! sort in x1
    ALLOCATE (dummy(np))
    ALLOCATE (x1_isort(np))
@@ -119,7 +115,6 @@ IF (rank.EQ.root) THEN
 
    ! calculate points to send to each process (balanced approach)
    WRITE(*, *) "Calculating number of points for each rank..."
-   ! NOTE: at least 2 points should be in each rank
    ALLOCATE (np_ranks(nranks))
    np_ranks(:) = INT(np/nranks)
    extra_pts = MODULO(np, nranks)
@@ -128,6 +123,7 @@ IF (rank.EQ.root) THEN
    END DO
 
 END IF
+CALL CPU_TIME(cput(6))
 
 ! Broadcast np (or scatter)
 ALLOCATE (scatter_counts(nranks))
@@ -138,7 +134,9 @@ scatter_displace = [ (i, i=0, nranks-1) ]
 CALL MPI_Scatterv (np_ranks, scatter_counts, scatter_displace, MPI_INTEGER, rank_np, 1, &
    MPI_INTEGER, root, MPI_COMM_WORLD, ierr)
 
+! allocate
 ALLOCATE (rank_pts(rank_np, ndim))
+msgsize = rank_np * ndim  ! msgsize for communication of points
 ! ScatterV
 IF (rank==root) THEN 
    scatter_counts = np_ranks
@@ -159,6 +157,7 @@ CALL MPI_Scatterv (x1_sort(:, 2), scatter_counts, scatter_displace, MPI_DOUBLE_P
 ! DO i = 1, rank_np
 !    WRITE(*,'("R", I2, " npr=", 2(1X, F9.5))') rank, rank_pts(i, :)
 ! END DO
+CALL CPU_TIME(cput(7))
 
 ! calculate closest pair for each rank
 ALLOCATE (p1(ndim))
@@ -166,10 +165,10 @@ ALLOCATE (p2(ndim))
 p1 = 0.d0
 p2 = 0.d0
 mindist = 0.d0
-! CALL measure_cpu_time(cput1, msg=cputlabel)
+
 CALL getClosest(rank_np, rank_pts, p1, p2, mindist)
-! CALL measure_cpu_time(cput1, msg=cputlabel)
-! 
+CALL CPU_TIME(cput(8))
+
 ! Reduce and obtain delta and rank with closest pair (with MIN_loc)
 ! delta is closest distance
 reduce_mindist(1) = mindist
@@ -181,13 +180,10 @@ delta = mindist_out(1)
 ! round to nearest integer
 closest_rank = NINT(mindist_out(2))
 
-IF (rank.EQ.root) THEN
-   WRITE(*, *) "Location of delta: RANK ", closest_rank, " , dist = ", delta
-END IF
+CALL CPU_TIME(cput(9))
 
 DEALLOCATE (rank_pts)
-
-! root checks for points within +-delta of vertical strips
+! 
 i1 = 0  ! auxiliary index
 IF (rank.EQ.root) THEN
    ALLOCATE (strips(nranks))
@@ -197,7 +193,7 @@ IF (rank.EQ.root) THEN
       i1 = i1 + np_ranks(i-1)
       ! NOTE: mid-way between last point of rank i-1, and first of i
       strips(i) = (x1_sort(i1, 1) + x1_sort(i1+1, 1)) / 2.d0
-      ! strips(i-1) = all_pts(i1, 1)
+      ! strips(i-1) = all_pts(i1, 1) 
    END DO
 
    ! get points within +-delta
@@ -219,7 +215,6 @@ IF (rank.EQ.root) THEN
       IF (np_strips(j).LT.2) THEN
          i1 = i1 - np_strips(j)
          np_strips(j) = 0
-         all_strips(i1:, :) = LARGE ! remove strip points
       END IF
    END DO
 END IF
@@ -229,6 +224,8 @@ END IF
 scatter_counts = 0  ! do not operate on
 scatter_counts(2:) = 1
 scatter_displace = [ (i, i=0, nranks-1) ]
+
+CALL CPU_TIME(cput(10))
 
 rank_np = 0
 CALL MPI_Scatterv (np_strips, scatter_counts, scatter_displace, MPI_INTEGER, rank_np, 1, &
@@ -248,13 +245,13 @@ IF (rank==root) THEN
       scatter_displace(i+1) = scatter_displace(i) + np_strips(i)
    END DO
 END IF
-
 CALL MPI_Scatterv (all_strips(:i1, 1), scatter_counts, scatter_displace, &
    MPI_DOUBLE_PRECISION, rank_pts(:, 1), rank_np, MPI_DOUBLE_PRECISION, &
    root, MPI_COMM_WORLD, ierr)
 CALL MPI_Scatterv (all_strips(:i1, 2), scatter_counts, scatter_displace, &
    MPI_DOUBLE_PRECISION, rank_pts(:, 2), rank_np, MPI_DOUBLE_PRECISION, &
    root, MPI_COMM_WORLD, ierr)
+CALL CPU_TIME(cput(11))
 
 ! calculate closest pair in strip for each rank
 ALLOCATE (p1_strip(ndim))
@@ -263,11 +260,11 @@ p1_strip = 0.d0
 p2_strip = 0.d0
 strip_mindist = LARGE
 
-! 2D strip calculation NOTE: Replace for subroutine
 IF (rank_np.GE.2) THEN
    CALL getClosestStrip(rank_np, rank_pts, strip_location, delta, &
       p1_strip, p2_strip, strip_mindist)
 END IF
+CALL CPU_TIME(cput(12))
 
 ! reduce location and value
 CALL MPI_Barrier (MPI_COMM_WORLD, ierr)
@@ -279,6 +276,7 @@ CALL MPI_Allreduce (reduce_strip_mindist, strip_mindist_out, 1, &
 ! separate mindist for strip
 mindist = strip_mindist_out(1)
 closest_rank_strip = INT(strip_mindist_out(2))
+CALL CPU_TIME(cput(13))
 
 IF (mindist.LT.delta) THEN
    closest_rank = closest_rank_strip
@@ -295,13 +293,14 @@ DEALLOCATE (p2_strip)
 IF (rank.EQ.closest_rank) THEN
    ! write results (stdout - optional)
    CALL writeResultsToStd(mindist, p1, p2)
+END IF
+CALL CPU_TIME(cput(14))
+IF (rank.EQ.closest_rank) THEN
    ! write results (file)
    CALL writeResultsToFile(outfile, p1, p2)
 END IF
+CALL CPU_TIME(cput(15))
 
-! finish measuring cputime
-IF (rank.EQ.root) CALL measure_cpu_time(cput)
- 
 ! deallocate
 IF (rank_np.GE.2) DEALLOCATE (rank_pts)
 IF (rank.EQ.root) THEN
@@ -310,6 +309,85 @@ IF (rank.EQ.root) THEN
 END IF
 DEALLOCATE (p1)
 DEALLOCATE (p2)
+
+CALL CPU_TIME(cput(16))
+
+cput = cput - cput(1)
+cput_red = cput
+DO i = 2, MEASUREMENTS-1
+   cput(i) = cput_red(i) - cput_red(i-1) 
+END DO
+CALL MPI_Reduce (cput, cput_red, MEASUREMENTS, MPI_REAL, &
+   MPI_MAX, root, MPI_COMM_WORLD, ierr)
+
+commtime = cput(5) + cput(7) + cput(9) + cput(11) + cput(13) + cput(2)
+
+CALL MPI_Reduce (commtime, commtime_red, 1, MPI_REAL, &
+   MPI_MAX, root, MPI_COMM_WORLD, ierr)
+
+IF (rank.EQ.root) THEN
+   ! write to cputime.txt
+   cput = cput * 1000.  ! miliseconds
+   cput_red = cput_red * 1000.  ! miliseconds
+   commtime_red = commtime_red * 1000.  ! miliseconds
+   
+   ! stdout
+   WRITE(*,*) 
+   WRITE(*,*) "Time output (ms):"
+   WRITE(*, '(" MPI Init:         ", F12.3)') cput_red(2)
+   WRITE(*, '(" Argument parsing: ", F12.3)') cput_red(3)
+   WRITE(*, '(" Read points:      ", F12.3)') cput_red(4)
+   WRITE(*, '(" MPI Bcast:        ", F12.3)') cput_red(5)
+   WRITE(*, '(" Sort+Distribution:", F12.3)') cput_red(6)
+   WRITE(*, '(" MPI Scatter1:     ", F12.3)') cput_red(7)
+   WRITE(*, '(" getClosest:       ", F12.3)') cput_red(8)
+   WRITE(*, '(" MPI Allreduce1:   ", F12.3)') cput_red(9)
+   WRITE(*, '(" Strip allocation: ", F12.3)') cput_red(10)
+   WRITE(*, '(" MPI_Scatter2:     ", F12.3)') cput_red(11)
+   WRITE(*, '(" Strip calculation:", F12.3)') cput_red(12)
+   WRITE(*, '(" MPI_Allreduce2:   ", F12.3)') cput_red(13)
+   WRITE(*, '(" Write to stdout:  ", F12.3)') cput_red(14)
+   WRITE(*, '(" Write to file:    ", F12.3)') cput_red(15)
+   WRITE(*, '(" ** Total MPI time:", F12.3, " **")') commtime_red
+   WRITE(*, '(" ** Total time:    ", F12.3, " **")') cput_red(16)
+   
+   ! to file
+   INQUIRE (FILE=cpufile, EXIST=fexist)
+   IF (.NOT.fexist) THEN
+      OPEN(8, FILE=cpufile, STATUS='NEW', ACTION='WRITE')
+      WRITE(8, *) "np, nranks, args+readpts, sort, getclosest, strip_alloc, strip_calc, writeStd, writeFile, total"
+      OPEN(9, FILE=commfile, STATUS='NEW', ACTION='WRITE')
+      WRITE(9, *) "np, nranks, init, bcast, scatter1, allreduce1, scatter2, allreduce2, total"
+   ELSE
+      OPEN(8, FILE=cpufile, STATUS='OLD', POSITION='APPEND', ACTION='WRITE')
+      OPEN(9, FILE=commfile, STATUS='OLD', POSITION='APPEND', ACTION='WRITE')
+   END IF
+   
+   ! WRITE MESSAGE
+   WRITE(8, 1080) np, nranks, &
+    cput_red(3) + cput_red(4), &
+    cput_red(6), &
+    cput_red(8), &
+    cput_red(10), &
+    cput_red(12), &
+    cput_red(14), &
+    cput_red(15), &
+    cput_red(16)
+   CLOSE(8)
+
+   WRITE(9, 1090) np, nranks, &
+      cput_red(2), &
+      cput_red(5), &
+      cput_red(7), &
+      cput_red(9), &
+      cput_red(11), &
+      cput_red(13), &
+      commtime_red
+   CLOSE(9)
+
+   1080 FORMAT(I7, ', ', I2, 8(', ', F11.3))
+   1090 FORMAT(I7, ', ', I2, 7(', ', F11.3))
+END IF
 
 CALL MPI_Finalize(ierr)
 

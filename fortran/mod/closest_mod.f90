@@ -16,6 +16,7 @@ USE iso_fortran_env  ! module for compiler-independent precision declaration
 IMPLICIT NONE
 SAVE
 
+INTEGER, PARAMETER :: MEASUREMENTS = 16
 REAL(KIND=REAL64), PARAMETER :: LARGE = huge(LARGE)
    ! largest double precision value
 
@@ -24,7 +25,8 @@ INTEGER :: np  ! number of points
 INTEGER :: ndim  ! number of dimensions, global used for all subroutines
 INTEGER :: verb ! verbosity level
 
-REAL :: cput, cput1 = -1.  ! cputime
+! REAL :: cput, cput1 = -1.  ! cputime
+REAL, DIMENSION(MEASUREMENTS) :: cput
 REAL, ALLOCATABLE, DIMENSION(:,:) :: domain  ! point domain limits
 REAL(KIND=REAL64) :: mindist  ! minimum distance
 REAL(KIND=REAL64), ALLOCATABLE, DIMENSION(:) :: p1, p2  ! closest points
@@ -32,7 +34,9 @@ REAL(KIND=REAL64), ALLOCATABLE, DIMENSION(:,:) :: all_pts  ! list of points
 
 ! String
 CHARACTER(len=80) :: infile, outfile  ! filenames for points I/O
-CHARACTER(len=80) :: cputlabel  ! label for cputime
+CHARACTER(len=80) :: cputlabel, cpufile  ! label for cputime
+
+LOGICAL :: fexist ! if file exists
       
 
 CONTAINS
@@ -70,10 +74,6 @@ CONTAINS
       CALL GET_COMMAND_ARGUMENT(NUMBER=2, VALUE=arg2, STATUS=ioerr)
       IF (ioerr.NE.0) WRITE(*,*) 'Error on output file arg.'
       
-      ! trim filenames
-      ! arg1 = TRIM(arg1)
-      ! arg2 = TRIM(arg2)
-
       WRITE(*, *) "Input file (points):        ", TRIM(arg1)
       WRITE(*, *) "Output file (closest pair): ", TRIM(arg2)
 
@@ -93,11 +93,6 @@ CONTAINS
          ! domain limits (min, max) for each dimension.
       REAL(KIND=REAL64), ALLOCATABLE, DIMENSION(:,:), INTENT(OUT) :: points
          !! array of points
-
-      REAL :: cputime = -1.
-
-      cputlabel = 'readPoints'
-      CALL measure_cpu_time(cputime, cputlabel)
       
       npts = 0
       dims = 2
@@ -141,8 +136,6 @@ CONTAINS
       102 FORMAT (ES23.15E3, ', ', ES23.15E3)
       103 FORMAT (2(ES23.15E3, ', '), ES23.15E3)
 
-      CALL measure_cpu_time(cputime, cputlabel)
-
    END SUBROUTINE
 
    SUBROUTINE writeResultsToStd (min_dist, pt1, pt2)
@@ -156,11 +149,6 @@ CONTAINS
          ! distance of closest pair
       REAL(KIND=REAL64), DIMENSION(ndim), INTENT(IN) :: pt1, pt2
          ! first and second point of closest pair
-
-      REAL :: cputime = -1.
-
-      cputlabel = 'writeToStd'
-      CALL measure_cpu_time(cputime, cputlabel)
 
       WRITE(*,100) min_dist
       100 FORMAT (" Closest points' distance: ", ES23.15E3)
@@ -179,8 +167,6 @@ CONTAINS
       102 FORMAT (1X, A, 1X, ES23.15E3, ', ', ES23.15E3)
       103 FORMAT (1X, A, 1X, 2(ES23.15E3, ', '), ES23.15E3)
 
-      CALL measure_cpu_time(cputime, cputlabel)
-
    END SUBROUTINE writeResultsToStd
 
    SUBROUTINE writeResultsToFile (filename, pt1, pt2)
@@ -190,15 +176,8 @@ CONTAINS
 
       CHARACTER(len=*) :: filename
          ! name of output file
-      ! INTEGER, INTENT(IN) :: dims
-         ! number of dimensions.
       REAL(KIND=REAL64), DIMENSION(ndim), INTENT(IN) :: pt1, pt2
          ! first and second point of closest pair
-
-      REAL :: cputime = -1.0
-
-      cputlabel = 'writeToFile'
-      CALL measure_cpu_time(cputime, cputlabel)
 
       filename = TRIM(filename)
 
@@ -219,8 +198,6 @@ CONTAINS
       102 FORMAT (E23.15E3, ', ', E23.15E3)
       103 FORMAT (2(E23.15E3, ', '), E23.15E3)
 
-      CALL measure_cpu_time(cputime, cputlabel)
-
    END SUBROUTINE writeResultsToFile
 
    SUBROUTINE getClosest (npts, points, pt1, pt2, min_dist)
@@ -234,13 +211,8 @@ CONTAINS
       REAL(KIND=REAL64), DIMENSION(npts, ndim), INTENT(IN) :: points
          ! array of points
 
-      INTEGER, DIMENSION(2) :: closest_pts = 0
-         ! indices (from array) of pair of closest points
       REAL(KIND=REAL64) :: dist
          ! distance between points
-      ! REAL(KIND=REAL64) :: ldist
-         ! distance between points (single direction)
-
       REAL(KIND=REAL64), DIMENSION(ndim), INTENT(OUT) :: pt1, pt2
          ! coordinates of points 1 and 2 of closest pair
       REAL(KIND=REAL64), INTENT(OUT) :: min_dist
@@ -251,45 +223,17 @@ CONTAINS
       min_dist = LARGE
 
       dist = 0.d0
-      ! ldist = 0.d0
 
-      IF (verb.EQ.1) THEN
-         WRITE(*,*) "Points: "
-         DO i = 1, npts
-            SELECT CASE (ndim)
-               CASE (1)
-                  WRITE(*,101) points(i,:)
-               CASE (2)
-                  WRITE(*,102) points(i,:)
-               CASE (3)
-                  WRITE(*,103) points(i,:)
-            END SELECT
-         END DO
-      END IF
-      101 FORMAT (ES23.15E3)
-      102 FORMAT (ES23.15E3, ', ', ES23.15E3)
-      103 FORMAT (2(ES23.15E3, ', '), ES23.15E3)
-
-      IF (verb.EQ.1) WRITE(*, *) "Calculating closest pair..."
       DO i = 1, npts
          DO j = i+1, npts
-            dist = calcDist (ndim, points(i,:), points(j,:))
+            dist = NORM2 (points(i, :) - points(j, :))
             IF (dist.LT.min_dist) THEN
                min_dist = dist
-               closest_pts(1) = i
-               closest_pts(2) = j
+               pt1 = points(i, :)
+               pt2 = points(j, :)
             END IF
          END DO
       END DO
-
-      IF (verb.EQ.1) THEN
-         WRITE(*,*) "Distances: "
-         WRITE(*,201) dist
-         201 FORMAT (10(1X, F10.3))
-      END IF
-
-      pt1 = points(closest_pts(1), :)
-      pt2 = points(closest_pts(2), :)
 
    END SUBROUTINE
 
@@ -321,7 +265,10 @@ CONTAINS
       REAL(KIND=REAL64), INTENT(OUT) :: min_dist
          ! minimum distance (= distance between closest pair)
 
+      ! NOTE: ending condition: when 3 points are left, execute brute 
+      ! force (4 can be divided, 2 is straightforward)
       IF (npts.LE.3) THEN
+         ! exec brute force (with px1 or px2)
          CALL getClosest(npts, px1, pt1, pt2, min_dist)
          RETURN
       END IF
@@ -341,9 +288,11 @@ CONTAINS
       DO i = 1, npts
          IF ((px2(i, 1).LT.L).AND.(il.LT.imid)) THEN
             il = il + 1
+            ! WRITE(*,*) il
             px2_l(il, :) = px2(i, :)
          ELSE
             ir = ir + 1
+            ! WRITE(*,*) ir
             px2_r(ir, :) = px2(i, :)
          END IF
       END DO
@@ -482,7 +431,7 @@ CONTAINS
       IF (strip_n.LT.2) THEN ! no need to calculate
          RETURN
       ELSE IF (strip_n.EQ.2) THEN ! needed?
-         mindist_strip = calcDist (ndim, strip_pts(1, :), strip_pts(2, :))
+         mindist_strip = NORM2 (strip_pts(1, :) - strip_pts(2, :))
          p1s = strip_pts(1, :)
          p1s = strip_pts(2, :)
       ELSE
@@ -490,7 +439,6 @@ CONTAINS
          IF (ndim.NE.2) THEN
          CALL getClosest(strip_n, strip_pts, p1s, p2s, mindist_strip)
          ELSE
-            ! NOTE: CLOSEST STRIP 2D
             DO i=1, strip_n - 1
                np_opp = 0  ! opposite side of L
                np_same = 0  ! same side of L
@@ -595,5 +543,38 @@ CONTAINS
 
       RETURN
    END SUBROUTINE measure_cpu_time
+
+!    SUBROUTINE writeCputime (cputime)
+! 
+!       IMPLICIT NONE
+! 
+!       REAL, DIMENSION(MEASUREMENTS), INTENT(IN) :: cputime
+!       REAL, DIMENSION(MEASUREMENTS) :: processed
+! 
+!       LOGICAL :: fexist
+! 
+!       
+!       processed = cputime - cputime(0)
+!       ! miliseconds
+!       processed = processed * 1000.
+! 
+!       INQUIRE (FILE='cputime.txt', EXIST=fexist)
+!       IF (.NOT.fexist) THEN
+!          OPEN(8, FILE='cputime.txt', STATUS='NEW', ACTION='WRITE')
+!       ELSE
+!          OPEN(8, FILE='cputime.txt', STATUS='OLD', ACTION='WRITE')
+!       END IF
+! 
+!       ! WRITE MESSAGE
+! 
+!       CLOSE(8)
+! 
+!       1000 FORMAT (" ** ", A, ": Took ", F9.6, " seconds.")
+!       1001 FORMAT (A, ", ", F9.6)
+!       1002 FORMAT ("main, ", F6.6)
+!       1003 FORMAT ("* Took ", F9.6, " seconds.")
+! 
+!       RETURN
+!    END SUBROUTINE writeCputime
 
 END MODULE closest_mod

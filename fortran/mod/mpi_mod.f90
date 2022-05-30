@@ -31,21 +31,23 @@ INTEGER :: mpi_stat(MPI_STATUS_SIZE)  ! status array
 INTEGER :: root 
    ! root rank
 
+! code instrumentation
+REAL, DIMENSION(MEASUREMENTS) :: cput_red
+REAL :: commtime, commtime_red
+
+CHARACTER(len=80) :: commfile  ! label for cputime
+
 CONTAINS
 
    RECURSIVE SUBROUTINE closestPairDC_MPI (npts, px1, px2, pt1, pt2, &
            min_dist, level, sublevel, available_ranks)
       ! Get the closest pair of points through a divide and conquer approach
    
-      ! USE closest_mod
-   
       IMPLICIT NONE
    
       ! inputs
       INTEGER, INTENT(IN) :: npts
          ! number of points
-      ! INTEGER, INTENT(IN) :: dims
-         ! number of dimensions
       INTEGER, INTENT(IN) :: level, sublevel, available_ranks
          ! divide and conquer level
       REAL(KIND=REAL64), DIMENSION(npts, ndim), INTENT(IN) :: px1, px2
@@ -54,6 +56,7 @@ CONTAINS
       INTEGER :: imid, il, ir
          ! index of mid-point
       INTEGER :: ldivs, rdivs
+         ! left and right x1-divisions remaining
    
       ! MPI
       INTEGER :: tgt_rank
@@ -101,7 +104,6 @@ CONTAINS
       L = (px1(imid, 1) + px1(imid+1, 1)) / 2.
       ! L = points(imid, 1)
 
-      ! NOTE: subroutine?
       ! divide points in px2 (x2-sorted array)
       ALLOCATE(px2_l(imid, ndim))
       ALLOCATE(px2_r(npts-imid, ndim))
@@ -119,6 +121,7 @@ CONTAINS
 
       ! if rdivs > 1, we need to send to another rank
       IF (rdivs.GT.0) THEN
+         CALL CPU_TIME(cput(11))  ! aux
          tgt_rank = rank + ldivs
          commtag = tgt_rank
          CALL MPI_Send (rank, 1, MPI_INTEGER, tgt_rank, commtag, &
@@ -143,6 +146,8 @@ CONTAINS
          commtag = tgt_rank + 600
          CALL MPI_Send (sublevel*2, 1, MPI_INTEGER, tgt_rank, commtag, &
             MPI_COMM_WORLD, ierr)
+         CALL CPU_TIME(cput(12))  ! aux
+         cput(13) = cput(13) + cput(12) - cput(11)
       END IF
 
       ! left side
@@ -151,6 +156,7 @@ CONTAINS
    
       IF (rdivs.GT.0) THEN
          ! Receive pr, qr, rdist from tgt rank
+         CALL CPU_TIME(cput(11)) ! aux
          src = tgt_rank
          commtag = tgt_rank + 1000
          CALL MPI_Recv (rdist, 1, MPI_DOUBLE_PRECISION, src, commtag, &
@@ -161,6 +167,8 @@ CONTAINS
          commtag = tgt_rank + 1200
          CALL MPI_Recv (qr, ndim, MPI_DOUBLE_PRECISION, src, commtag, &
             MPI_COMM_WORLD, mpi_stat, ierr)
+         CALL CPU_TIME(cput(12)) ! aux
+         cput(14) = cput(14) + cput(12) - cput(11)
       ELSE
          ! else execute here
          CALL closestPairDC_MPI (ir, px1(imid+1:, :), px2_r, pr, qr, &
@@ -171,12 +179,14 @@ CONTAINS
       L = (px1(imid, 1) + px1(imid+1, 1)) / 2.
       ! L = points(imid, 1)
 
-      ! delta
-      min_dist = MIN(ldist, rdist)
       ! pm, qm (strip)
+      CALL CPU_TIME(cput(11))
+      min_dist = MIN(ldist, rdist)
       CALL closestPairStrip (npts, px2, L, min_dist, pm, qm, &
                              sdist)
-
+      CALL CPU_TIME(cput(12))
+      cput(15) = cput(15) + cput(12) - cput(11)
+   
       ! return closest pair
       IF (sdist.LT.min_dist) THEN
           pt1 = pm
@@ -189,8 +199,6 @@ CONTAINS
           pt1 = pl 
           pt2 = ql
       END IF
-   
-      ! if host != myrank: send results to host (needed?)
    
    END SUBROUTINE closestPairDC_MPI
         

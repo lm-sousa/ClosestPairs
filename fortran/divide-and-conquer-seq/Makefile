@@ -28,7 +28,7 @@ MODOBJ = closest_mod.o sort_mod.o
 include ../makefile.cfg
 
 # Compiler (GCC)
-FC = gfortran
+# FC = gfortran
 
 .PHONY: all clean
 

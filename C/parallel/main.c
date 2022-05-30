@@ -11,6 +11,7 @@
 
 FILE *fi;
 FILE *fo;
+FILE *fcsv;
 
 dimensionIndex_t dims = 2;
 pointIndex_t numberOfPoints = 0;
@@ -58,10 +59,20 @@ int main(int argc, char *argv[]) {
         }
 
         fo = fopen(argv[2], "w");
-        if (fi == NULL) {
+        if (fo == NULL) {
             printf("Error opening output file.\n");
             fclose(fi);
             return -1;
+        }
+
+        if (argc == 4) {
+            fcsv = fopen(argv[3], "w");
+            if (fcsv == NULL) {
+                printf("Error opening output file.\n");
+                fclose(fi);
+                fclose(fo);
+                return -1;
+            }
         }
 
         timePoint[2] = clock();
@@ -70,6 +81,9 @@ int main(int argc, char *argv[]) {
         if (numValuesRead != 1) {
             fclose(fi);
             fclose(fo);
+            if (argc == 4) {
+                fclose(fcsv);
+            }
             printf("Error reading number of points from file.\n");
             return -1;
         }
@@ -77,6 +91,9 @@ int main(int argc, char *argv[]) {
         if (numberOfPoints < 2) {
             fclose(fi);
             fclose(fo);
+            if (argc == 4) {
+                fclose(fcsv);
+            }
             printf("Number of points needs to be at least 2.\n");
             return -1;
         }
@@ -85,6 +102,9 @@ int main(int argc, char *argv[]) {
         if (numValuesRead != 1) {
             fclose(fi);
             fclose(fo);
+            if (argc == 4) {
+                fclose(fcsv);
+            }
             printf("Error reading dimensions from file.\n");
             return -1;
         }
@@ -95,6 +115,9 @@ int main(int argc, char *argv[]) {
         if (dimensionData == NULL) {
             fclose(fi);
             fclose(fo);
+            if (argc == 4) {
+                fclose(fcsv);
+            }
             printf("Error allocating memory for dimension data.\n");
             return -1;
         }
@@ -103,6 +126,9 @@ int main(int argc, char *argv[]) {
         if (points == NULL) {
             fclose(fi);
             fclose(fo);
+            if (argc == 4) {
+                fclose(fcsv);
+            }
             free(dimensionData);
             printf("Error allocating memory for points.\n");
             return -1;
@@ -116,6 +142,9 @@ int main(int argc, char *argv[]) {
             if (numValuesRead != 2) {
                 fclose(fi);
                 fclose(fo);
+                if (argc == 4) {
+                    fclose(fcsv);
+                }
                 free(dimensionData);
                 free(points);
                 printf("Error reading dimension boundaries from file.\n");
@@ -133,6 +162,9 @@ int main(int argc, char *argv[]) {
                 if (numValuesRead != 1) {
                     fclose(fi);
                     fclose(fo);
+                    if (argc == 4) {
+                        fclose(fcsv);
+                    }
                     free(dimensionData);
                     free(points);
                     printf("Error reading points from file.\n");
@@ -168,6 +200,9 @@ int main(int argc, char *argv[]) {
     if (partialArray == NULL) {
         fclose(fi);
         fclose(fo);
+        if (argc == 4) {
+            fclose(fcsv);
+        }
         free(dimensionData);
         free(points);
         printf("Error allocating 'partialArray'.\n");
@@ -179,6 +214,9 @@ int main(int argc, char *argv[]) {
     if (partialArray2 == NULL) {
         fclose(fi);
         fclose(fo);
+        if (argc == 4) {
+            fclose(fcsv);
+        }
         free(dimensionData);
         free(points);
         free(partialArray);
@@ -211,6 +249,9 @@ int main(int argc, char *argv[]) {
             if (partialArray == NULL) {
                 fclose(fi);
                 fclose(fo);
+                if (argc == 4) {
+                    fclose(fcsv);
+                }
                 free(dimensionData);
                 free(points);
                 printf("Error reallocating 'partialArray'.\n");
@@ -222,6 +263,9 @@ int main(int argc, char *argv[]) {
             if (newArray == NULL) {
                 fclose(fi);
                 fclose(fo);
+                if (argc == 4) {
+                    fclose(fcsv);
+                }
                 free(dimensionData);
                 free(points);
                 free(partialArray);
@@ -259,6 +303,9 @@ int main(int argc, char *argv[]) {
     if (partialArray == NULL) {
         fclose(fi);
         fclose(fo);
+        if (argc == 4) {
+            fclose(fcsv);
+        }
         free(dimensionData);
         free(points);
         printf("Error allocating 'partialArray'.\n");
@@ -277,8 +324,6 @@ int main(int argc, char *argv[]) {
     bestPair.self[1] += partialArrayDisplacement[mpi.id] / dims;
 
     int iter = 0;
-    printf("%d;%d: %lu-%lu --> %lf\n", mpi.id, iter++, bestPair.self[0],
-           bestPair.self[1], minDistance.self);
 
     for (int i = 2; i <= mpi.processes; i <<= 1) {
         int currentSize = partialArraySize2[mpi.id];
@@ -322,6 +367,9 @@ int main(int argc, char *argv[]) {
             if (partialArray == NULL) {
                 fclose(fi);
                 fclose(fo);
+                if (argc == 4) {
+                    fclose(fcsv);
+                }
                 free(dimensionData);
                 free(points);
                 printf("Error reallocating 'partialArray'.\n");
@@ -345,18 +393,6 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            /*
-            printf("%d;%d c:%d, r:%d, t:%d ---", mpi.id, iter, currentSize,
-                   recvSize, partialArraySize2[mpi.id]);
-            for (int i = 0; i < partialArraySize2[mpi.id]; i += dims) {
-                printf(" %lE", partialArray[i]);
-            }
-            printf("\n");
-            printf("%d;%d l:%lu, m:%lu, r:%lu\n", mpi.id, iter, leftPointIndex,
-                   middlePointIndex, rightPointIndex);
-            fflush(stdout);
-            */
-
             pointIndex_t stripBestPair[2];
             double stripMinDistance;
 
@@ -379,18 +415,6 @@ int main(int argc, char *argv[]) {
                 bestPair.self[0] = bestPair.recv[0];
                 bestPair.self[1] = bestPair.recv[1];
             }
-
-            /*
-            printf("%d;%d ---", mpi.id, iter++);
-            for (int i = leftPointIndex; i <= rightPointIndex; i += dims) {
-                printf(" %lE", partialArray[i]);
-            }
-            printf("\n");
-            fflush(stdout);
-            */
-
-            printf("%d;%d: %lu-%lu --> %lf\n", mpi.id, iter++, bestPair.self[0],
-                   bestPair.self[1], minDistance.self);
         }
     }
 
@@ -445,6 +469,27 @@ int main(int argc, char *argv[]) {
                (double)(timePoint[10] - timePoint[9]) / CLOCKS_PER_SEC * 1000);
         printf("\nTotal time elapsed: %6.3lf ms\n",
                (double)(timePoint[10]) / CLOCKS_PER_SEC * 1000);
+
+        if (argc == 4) {
+            fprintf(
+                fcsv,
+                "%6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, "
+                "%6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf\n",
+                (double)(timePoint[0]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[1] - timePoint[0]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[2] - timePoint[1]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[3] - timePoint[2]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[4] - timePoint[3]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[5] - timePoint[4]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[6] - timePoint[5]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[7] - timePoint[6]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[8] - timePoint[7]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[9] - timePoint[8]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[10] - timePoint[9]) / CLOCKS_PER_SEC * 1000,
+                (double)(timePoint[10]) / CLOCKS_PER_SEC * 1000);
+
+            fclose(fcsv);
+        }
     }
 
     MPI_Finalize();

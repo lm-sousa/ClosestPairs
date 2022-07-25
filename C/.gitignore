@@ -1,4 +1,7 @@
+parallel
+serial
 .build
 *.dat
 *.txt
 *.csv
+mpip/

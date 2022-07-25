@@ -2,6 +2,7 @@
 #define __CLOSESTPAIR_H__
 
 #include <float.h>
+#include <math.h>
 
 #include "types.h"
 

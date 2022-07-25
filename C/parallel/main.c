@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        fo = fopen(argv[2], "w");
+        fo = fopen(argv[2], "a+");
         if (fo == NULL) {
             printf("Error opening output file.\n");
             fclose(fi);
@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (argc == 4) {
-            fcsv = fopen(argv[3], "w");
+            fcsv = fopen(argv[3], "a+");
             if (fcsv == NULL) {
                 printf("Error opening output file.\n");
                 fclose(fi);
@@ -74,8 +74,6 @@ int main(int argc, char *argv[]) {
                 return -1;
             }
         }
-
-        timePoint[2] = clock();
 
         numValuesRead = fscanf(fi, "%lu", &numberOfPoints);
         if (numValuesRead != 1) {
@@ -109,8 +107,6 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        timePoint[3] = clock();
-
         dimensionData = (double *)malloc(2 * sizeof(double) * dims);
         if (dimensionData == NULL) {
             fclose(fi);
@@ -134,8 +130,6 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        timePoint[4] = clock();
-
         for (dimensionIndex_t i = 0; i < dims; i++) {
             numValuesRead =
                 fscanf(fi, "%lf, %lf", &dimensionMin(i), &dimensionMax(i));
@@ -151,8 +145,6 @@ int main(int argc, char *argv[]) {
                 return -1;
             }
         }
-
-        timePoint[5] = clock();
 
         for (pointIndex_t point = 0; point < numberOfPoints; point++) {
             for (dimensionIndex_t dim = 0; dim < dims; dim++) {
@@ -172,8 +164,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-
-        timePoint[6] = clock();
     }
     MPI_Bcast(&dims, 1, MPI_SHORT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&numberOfPoints, 1, MPI_LONG, 0, MPI_COMM_WORLD);
@@ -223,6 +213,8 @@ int main(int argc, char *argv[]) {
         printf("Error allocating 'partialArray2'.\n");
         return -1;
     }
+
+    timePoint[2] = clock();
 
     MPI_Scatterv(points, partialArraySize, partialArrayDisplacement, MPI_DOUBLE,
                  partialArray, partialArraySize[mpi.id], MPI_DOUBLE, 0,
@@ -293,7 +285,7 @@ int main(int argc, char *argv[]) {
         points = partialArray;
     }
 
-    timePoint[7] = clock();
+    timePoint[3] = clock();
 
     ////////////////////////////////
     // Compute the closest pair
@@ -334,9 +326,10 @@ int main(int argc, char *argv[]) {
         if (mpi.id % i == (i / 2)) {
             // sent to id - (i/2)
             int sendSize = 0;
+            double realMinDistance = sqrt(minDistance.best);
             while (sendSize < currentSize) {
                 if ((partialArray[sendSize] - partialArray[getPointIndex(0)]) <
-                    minDistance.best) {
+                    realMinDistance) {
                     sendSize += dims;
                 } else {
                     break;
@@ -384,9 +377,10 @@ int main(int argc, char *argv[]) {
             pointIndex_t middlePointIndex = leftPointIndex;
             pointIndex_t rightPointIndex =
                 getPointIndex((partialArraySize2[mpi.id] / dims) - 1);
+            double realMinDistance = sqrt(minDistance.best);
             while (leftPointIndex > 0) {
                 if ((partialArray[middlePointIndex] -
-                     partialArray[leftPointIndex]) < minDistance.best) {
+                     partialArray[leftPointIndex]) < realMinDistance) {
                     leftPointIndex -= dims;
                 } else {
                     break;
@@ -422,7 +416,7 @@ int main(int argc, char *argv[]) {
         free(partialArray);
     }
 
-    timePoint[8] = clock();
+    timePoint[4] = clock();
 
     if (mpi.id == 0) {
 
@@ -434,14 +428,12 @@ int main(int argc, char *argv[]) {
             fprintf(fo, "\n");
         }
 
-        timePoint[9] = clock();
-
         fclose(fi);
         fclose(fo);
         free(dimensionData);
         free(points);
 
-        timePoint[10] = clock();
+        timePoint[5] = clock();
 
         printf("\nD: %hu; N: %lu\n", dims, numberOfPoints);
         printf("\nTime elapsed in miliseconds:\n");
@@ -449,44 +441,28 @@ int main(int argc, char *argv[]) {
                (double)(timePoint[0]) / CLOCKS_PER_SEC * 1000);
         printf("\tInitializing MPI -- : %6.3lf\n",
                (double)(timePoint[1] - timePoint[0]) / CLOCKS_PER_SEC * 1000);
-        printf("\tOpening files ----- : %6.3lf\n",
+        printf("\tlambda_i ---------- : %6.3lf\n",
                (double)(timePoint[2] - timePoint[1]) / CLOCKS_PER_SEC * 1000);
-        printf("\tReading header ---- : %6.3lf\n",
-               (double)(timePoint[3] - timePoint[2]) / CLOCKS_PER_SEC * 1000);
-        printf("\tAllocating memory - : %6.3lf\n",
-               (double)(timePoint[4] - timePoint[3]) / CLOCKS_PER_SEC * 1000);
-        printf("\tReading dimensions  : %6.3lf\n",
-               (double)(timePoint[5] - timePoint[4]) / CLOCKS_PER_SEC * 1000);
-        printf("\tReading points ---- : %6.3lf\n",
-               (double)(timePoint[6] - timePoint[5]) / CLOCKS_PER_SEC * 1000);
         printf("\tSorting points ---- : %6.3lf\n",
-               (double)(timePoint[7] - timePoint[6]) / CLOCKS_PER_SEC * 1000);
+               (double)(timePoint[3] - timePoint[2]) / CLOCKS_PER_SEC * 1000);
         printf("\tFinding closest pair: %6.3lf\n",
-               (double)(timePoint[8] - timePoint[7]) / CLOCKS_PER_SEC * 1000);
-        printf("\tWriting output file : %6.3lf\n",
-               (double)(timePoint[9] - timePoint[8]) / CLOCKS_PER_SEC * 1000);
-        printf("\tCleaning up ------- : %6.3lf\n",
-               (double)(timePoint[10] - timePoint[9]) / CLOCKS_PER_SEC * 1000);
+               (double)(timePoint[4] - timePoint[3]) / CLOCKS_PER_SEC * 1000);
+        printf("\tlambda_o ---------- : %6.3lf\n",
+               (double)(timePoint[5] - timePoint[4]) / CLOCKS_PER_SEC * 1000);
         printf("\nTotal time elapsed: %6.3lf ms\n",
-               (double)(timePoint[10]) / CLOCKS_PER_SEC * 1000);
+               (double)(timePoint[5]) / CLOCKS_PER_SEC * 1000);
 
         if (argc == 4) {
             fprintf(
                 fcsv,
-                "%6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, "
-                "%6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf\n",
+                "%6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf, %6.3lf\n",
                 (double)(timePoint[0]) / CLOCKS_PER_SEC * 1000,
                 (double)(timePoint[1] - timePoint[0]) / CLOCKS_PER_SEC * 1000,
                 (double)(timePoint[2] - timePoint[1]) / CLOCKS_PER_SEC * 1000,
                 (double)(timePoint[3] - timePoint[2]) / CLOCKS_PER_SEC * 1000,
                 (double)(timePoint[4] - timePoint[3]) / CLOCKS_PER_SEC * 1000,
                 (double)(timePoint[5] - timePoint[4]) / CLOCKS_PER_SEC * 1000,
-                (double)(timePoint[6] - timePoint[5]) / CLOCKS_PER_SEC * 1000,
-                (double)(timePoint[7] - timePoint[6]) / CLOCKS_PER_SEC * 1000,
-                (double)(timePoint[8] - timePoint[7]) / CLOCKS_PER_SEC * 1000,
-                (double)(timePoint[9] - timePoint[8]) / CLOCKS_PER_SEC * 1000,
-                (double)(timePoint[10] - timePoint[9]) / CLOCKS_PER_SEC * 1000,
-                (double)(timePoint[10]) / CLOCKS_PER_SEC * 1000);
+                (double)(timePoint[5]) / CLOCKS_PER_SEC * 1000);
 
             fclose(fcsv);
         }
